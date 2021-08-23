@@ -1,9 +1,24 @@
 - name: Configure webserver with nginx
   hosts: webservers
   become: True
+  vars:
+    tls_dir: /etc/nginx/ssl/
+    key_file: nginx.key
+    cert_file: nginx.crt
+    conf_file: /etc/nginx/sites-available/default
+    server_name: localhost
+
+  handlers:
+    - name: restart nginx
+      service:
+        name: nginx
+        state: restarted
+
   tasks:
     - name: install nginx
-      package: name=nginx update_cache=yes
+      package:
+        name: nginx
+        update_cache: true
 
     - name: copy nginx config file
       copy: src=nginx.conf dest=/etc/nginx/sites-available/default
