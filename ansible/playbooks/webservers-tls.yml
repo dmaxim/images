@@ -20,18 +20,49 @@
         name: nginx
         update_cache: true
 
-    - name: copy nginx config file
-      copy: src=nginx.conf dest=/etc/nginx/sites-available/default
+    - name: create directories for TLS certs
+      file:
+        path: "{{ tls_dir }}"
+        state: directory
+        mode: 0750
+      notify: restart nginx
+
+    - name: copy TLS files
+      copy:
+        src: "{{ item }}"
+        dest: "{{ tls_dir }}"
+        mode: 0600
     
-    - name: enable configuration
-      file: >
-        dest=/etc/nginx/sites-enabled/default
-        src=/etc/nginx/sites-available/default
-        state=link
+      loop: 
+        - "{{ key_file }}"
+        - "{{ cert_file }}"
+      notify: restart nginx
 
-    - name: copy index.html
-      template: src=index.html.j2 dest=/usr/share/nginx/html/index.html
+    - name: install nginx config file template
+      template:
+          src: nginx.conf.j2
+          dest: "{{ conf_file }}"
+          mode: 0644
+      notify: restart nginx
 
+    - name: install home package
+      template:
+        src: index.html.j2
+        dest: /usr/share/nginx/html/index.html
+        mode: 0644
 
     - name: restart nginx
-      service: name=nginx state=restarted
+      meta: flush_handlers
+
+    - name: "test it https://localhost:8443/index.html"
+      delegate_to: localhost
+      become: false
+      uri: 
+        url: 'https://localhost:8443/index.html'
+        validate_certs: false
+        return_content: true
+      register: this
+      faild_when: "'Running on ' not in this content"
+      tags:
+        - test
+

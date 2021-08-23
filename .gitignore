@@ -10,3 +10,7 @@ crash.log
 *.vmdk
 
 *.ovf
+
+*.crt
+
+*.key
