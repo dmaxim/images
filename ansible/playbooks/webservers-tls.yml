@@ -1,68 +1,31 @@
-- name: Configure webserver with nginx
+---
+- name: Configure webserver with nginx and tls
   hosts: webservers
   become: True
   vars:
-    tls_dir: /etc/nginx/ssl/
-    key_file: nginx.key
-    cert_file: nginx.crt
+    key_file: /etc/nginx/ssl/nginx.key
+    cert_file: /etc/nginx/ssl/nginx.crt
     conf_file: /etc/nginx/sites-available/default
     server_name: localhost
-
+  tasks:
+    - name: Install nginx
+      apt: name=nginx update_cache=yes cache_valid_time=3600
+    - name: create directories for TLS certificates
+      file: path=/etc/nginx/ssl state=directory
+    - name: copy TLS key
+      copy: src=files/nginx.key dest={{ key_file }} owner=root mode=0600
+      notify: restart nginx
+    - name: copy TLS certificate
+      copy: src=files/nginx.crt dest={{ cert_file }}
+      notify: restart nginx
+    - name: copy nginx config file
+      template: src=templates/nginx.conf.j2 dest={{ conf_file }}
+      notify: restart nginx
+    - name: enable configuration
+      file: dest=/etc/nginx/sites-enabled/default src={{ conf_file }} state=link
+      notify: restart nginx
+    - name: copy index.html
+      template: src=templates/index.html.j2 dest=/usr/share/nginx/html/index.html mode=0644
   handlers:
     - name: restart nginx
-      service:
-        name: nginx
-        state: restarted
-
-  tasks:
-    - name: install nginx
-      package:
-        name: nginx
-        update_cache: true
-
-    - name: create directories for TLS certs
-      file:
-        path: "{{ tls_dir }}"
-        state: directory
-        mode: 0750
-      notify: restart nginx
-
-    - name: copy TLS files
-      copy:
-        src: "{{ item }}"
-        dest: "{{ tls_dir }}"
-        mode: 0600
-    
-      loop: 
-        - "{{ key_file }}"
-        - "{{ cert_file }}"
-      notify: restart nginx
-
-    - name: install nginx config file template
-      template:
-          src: nginx.conf.j2
-          dest: "{{ conf_file }}"
-          mode: 0644
-      notify: restart nginx
-
-    - name: install home package
-      template:
-        src: index.html.j2
-        dest: /usr/share/nginx/html/index.html
-        mode: 0644
-
-    - name: restart nginx
-      meta: flush_handlers
-
-    - name: "test it https://localhost:8443/index.html"
-      delegate_to: localhost
-      become: false
-      uri: 
-        url: 'https://localhost:8443/index.html'
-        validate_certs: false
-        return_content: true
-      register: this
-      faild_when: "'Running on ' not in this content"
-      tags:
-        - test
-
+      service: name=nginx state=restarted
